@@ -1,0 +1,1488 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ul-performer · pads</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body {
+        margin: 0; height: 100%;
+        background: #0b0b0d; color: #f2f2f2;
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      }
+      body {
+        display: grid;
+        grid-template-rows: auto auto 1fr auto;
+        gap: 1rem;
+        padding: 1.5rem;
+        box-sizing: border-box;
+      }
+      header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+      h1 { font-size: 0.9rem; font-weight: 500; opacity: 0.6; margin: 0; letter-spacing: 0.1em; text-transform: uppercase; }
+      #status { font-size: 0.8rem; opacity: 0.5; }
+      #status.ok { color: #6ee7b7; opacity: 1; }
+      #status.err { color: #fca5a5; opacity: 1; }
+      button {
+        background: transparent;
+        color: #f2f2f2;
+        border: 1px solid #2a2a30;
+        padding: 0.4rem 0.75rem;
+        font: inherit;
+        font-size: 0.75rem;
+        border-radius: 6px;
+        cursor: pointer;
+        opacity: 0.7;
+      }
+      button:hover:not(:disabled) { opacity: 1; border-color: #3a3a42; }
+      button:disabled { opacity: 0.25; cursor: not-allowed; }
+
+      #transport {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 1.5rem;
+      }
+      #transport-buttons { display: flex; gap: 0.5rem; }
+      #transport-buttons button {
+        padding: 0.5rem 1rem;
+        font-size: 0.8rem;
+      }
+      #countdown {
+        font-size: 1.4rem;
+        font-variant-numeric: tabular-nums;
+        opacity: 0.5;
+        min-width: 5em;
+        text-align: center;
+        letter-spacing: 0.04em;
+      }
+      #countdown.active { opacity: 1; color: #f2f2f2; }
+      #countdown.warn { color: #fbbf24; }
+      #beat-meta {
+        font-size: 0.75rem;
+        opacity: 0.5;
+        font-variant-numeric: tabular-nums;
+        min-width: 7em;
+      }
+
+      main {
+        display: grid;
+        place-items: center;
+      }
+      #grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-template-rows: repeat(4, 1fr);
+        gap: clamp(8px, 1.5vmin, 16px);
+        height: min(75vh, 75vw * 4 / 3);
+        aspect-ratio: 3 / 4;
+      }
+      .pad {
+        position: relative;
+        background: #15151a;
+        border: 1px solid #23232a;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        transition: background 80ms ease-out, border-color 80ms ease-out, transform 80ms ease-out, box-shadow 120ms ease-out;
+      }
+      .pad.unassigned { opacity: 0.45; }
+      .pad.warm {
+        background: #4a3320;
+        border-color: #c87a3a;
+        color: #f4c896;
+        box-shadow: 0 0 24px -6px rgba(200, 122, 58, 0.55);
+      }
+      .pad.warm .pad-note { color: #f4c896; opacity: 1; }
+      .pad.warm .pad-label { color: #f4c896; opacity: 0.7; }
+      .pad.lit {
+        background: #f2f2f2;
+        border-color: #f2f2f2;
+        color: #0b0b0d;
+        transform: scale(0.97);
+        box-shadow: 0 0 32px -4px rgba(255, 255, 255, 0.4);
+      }
+      .pad.hit-green {
+        background: #1e5e36;
+        border-color: #4ade80;
+        color: #ecfdf5;
+        transform: scale(0.97);
+        box-shadow: 0 0 32px -4px rgba(74, 222, 128, 0.55);
+      }
+      .pad.hit-yellow {
+        background: #6b5614;
+        border-color: #facc15;
+        color: #fefce8;
+        transform: scale(0.97);
+        box-shadow: 0 0 32px -4px rgba(250, 204, 21, 0.55);
+      }
+      .pad.hit-red {
+        background: #7a1d1d;
+        border-color: #f87171;
+        color: #fef2f2;
+        transform: scale(0.97);
+        box-shadow: 0 0 32px -4px rgba(248, 113, 113, 0.55);
+      }
+      .pad-ms {
+        position: absolute;
+        bottom: 8px;
+        right: 10px;
+        font-size: 0.8rem;
+        font-variant-numeric: tabular-nums;
+        opacity: 0;
+        transition: opacity 80ms ease-out;
+      }
+      .pad.hit-green .pad-ms,
+      .pad.hit-yellow .pad-ms,
+      .pad.hit-red .pad-ms { opacity: 0.95; }
+
+      #overlay {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: rgba(11, 11, 13, 0.72);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        z-index: 10;
+      }
+      #overlay.hidden { display: none; }
+      #overlay-card {
+        position: relative;
+        background: #15151a;
+        border: 1px solid #2a2a30;
+        border-radius: 12px;
+        padding: 1.6rem 2rem;
+        min-width: 380px;
+        max-width: 460px;
+        font-variant-numeric: tabular-nums;
+      }
+      #overlay-title {
+        font-size: 0.7rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        opacity: 0.6;
+        margin: 0 0 1.2rem 0;
+        text-align: center;
+        font-weight: 500;
+      }
+      #overlay-stats {
+        display: grid;
+        grid-template-columns: auto auto;
+        column-gap: 1.4rem;
+        row-gap: 0.35rem;
+        font-size: 0.92rem;
+        margin-bottom: 1.2rem;
+      }
+      #overlay-stats.hidden { display: none; }
+      .summary-label { opacity: 0.6; }
+      .summary-value { text-align: right; }
+      .summary-divider {
+        grid-column: 1 / -1;
+        height: 1px;
+        background: #23232a;
+        margin: 0.55rem 0;
+      }
+
+      .overlay-panel.hidden { display: none !important; }
+
+      /* Setup panel */
+      #setup-form {
+        display: flex;
+        flex-direction: column;
+        gap: 0.7rem;
+      }
+      .setup-field {
+        display: grid;
+        grid-template-columns: 110px 1fr;
+        gap: 0.8rem;
+        align-items: center;
+        font-size: 0.9rem;
+      }
+      .setup-label { opacity: 0.7; }
+      #setup-form input,
+      #setup-form select {
+        background: #0b0b0d;
+        color: #f2f2f2;
+        border: 1px solid #2a2a30;
+        border-radius: 6px;
+        padding: 0.4rem 0.6rem;
+        font: inherit;
+        font-size: 0.9rem;
+        font-variant-numeric: tabular-nums;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      #setup-form input:focus,
+      #setup-form select:focus {
+        outline: none;
+        border-color: #6ee7b7;
+      }
+      .overlay-primary {
+        margin-top: 0.4rem;
+        background: #f2f2f2;
+        color: #0b0b0d;
+        font: inherit;
+        font-size: 0.9rem;
+        padding: 0.6rem 1rem;
+        border: 1px solid #f2f2f2;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 500;
+        opacity: 1;
+      }
+      .overlay-primary:hover { background: #e0e0e0; border-color: #e0e0e0; }
+      .overlay-corner {
+        position: absolute;
+        bottom: 0.7rem;
+        right: 1rem;
+        background: transparent;
+        color: #f2f2f2;
+        font: inherit;
+        font-size: 0.65rem;
+        border: none;
+        cursor: pointer;
+        opacity: 0.35;
+        padding: 0.2rem 0.4rem;
+      }
+      .overlay-corner:hover { opacity: 0.8; }
+
+      /* Rest panel */
+      .overlay-rest-bar {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.7rem;
+      }
+      #rest-countdown {
+        font-size: 1.6rem;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.04em;
+      }
+      #rest-countdown.warn { color: #fbbf24; }
+      #rest-skip {
+        padding: 0.5rem 1.2rem;
+        font-size: 0.9rem;
+      }
+      .overlay-secondary-row {
+        margin-top: 0.9rem;
+        padding-top: 0.9rem;
+        border-top: 1px solid #23232a;
+        display: flex;
+        justify-content: center;
+        gap: 0.5rem;
+      }
+      .overlay-secondary-btn {
+        font-size: 0.75rem;
+      }
+
+      /* Summary panel */
+      #panel-summary {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      #summary-back {
+        padding: 0.5rem 1.2rem;
+        font-size: 0.9rem;
+      }
+      .pad-label {
+        position: absolute;
+        top: 8px;
+        left: 10px;
+        font-size: 0.75rem;
+        opacity: 0.5;
+        font-variant-numeric: tabular-nums;
+      }
+      .pad.lit .pad-label { opacity: 0.6; color: #0b0b0d; }
+      .pad-note {
+        font-size: clamp(0.9rem, 2.2vmin, 1.4rem);
+        opacity: 0.85;
+        font-variant-numeric: tabular-nums;
+      }
+      .pad.unassigned .pad-note { opacity: 0.3; }
+      .pad.lit .pad-note { color: #0b0b0d; opacity: 1; }
+
+      footer {
+        font-size: 0.75rem;
+        opacity: 0.5;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        font-variant-numeric: tabular-nums;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>ul-performer · pads</h1>
+      <span id="status">requesting midi access…</span>
+    </header>
+
+    <div id="transport">
+      <div id="transport-buttons">
+        <button id="play">▶ play</button>
+        <button id="stop" disabled>⏹ stop</button>
+      </div>
+      <div id="countdown">30.0s</div>
+      <div id="beat-meta">90 bpm · 4/4</div>
+    </div>
+
+    <main>
+      <div id="grid"></div>
+    </main>
+
+    <footer>
+      <span id="device">no device</span>
+      <span id="hint">press pads in order from bottom-left (1) to top-right (12) to learn mapping</span>
+    </footer>
+
+    <div id="overlay" aria-hidden="false">
+      <div id="overlay-card">
+        <h2 id="overlay-title">lesson setup</h2>
+
+        <!-- Stats grid (shared between rest and set-summary panels) -->
+        <div id="overlay-stats" class="hidden"></div>
+
+        <!-- Setup panel -->
+        <section id="panel-setup" class="overlay-panel">
+          <form id="setup-form" autocomplete="off">
+            <label class="setup-field">
+              <span class="setup-label">Pattern</span>
+              <select id="setup-pattern">
+                <option value="ks-quarters">Kick / snare quarters</option>
+                <option value="ks-halves">Kick / snare halves</option>
+                <option value="ks-eighths">Kick / snare eighths</option>
+                <option value="ks-sixteenths">Kick / snare sixteenths</option>
+              </select>
+            </label>
+            <label class="setup-field">
+              <span class="setup-label">BPM</span>
+              <input id="setup-bpm" type="number" min="40" max="200" step="1" />
+            </label>
+            <label class="setup-field">
+              <span class="setup-label">Bars / rep</span>
+              <input id="setup-bars" type="number" min="1" max="65" step="1" />
+            </label>
+            <label class="setup-field">
+              <span class="setup-label">Reps / set</span>
+              <input id="setup-reps" type="number" min="1" max="20" step="1" />
+            </label>
+            <label class="setup-field">
+              <span class="setup-label">Rest (s)</span>
+              <input id="setup-rest" type="number" min="0" max="60" step="1" />
+            </label>
+            <button type="submit" id="setup-submit" class="overlay-primary">▶ begin set</button>
+          </form>
+          <button id="setup-reset-mapping" class="overlay-corner">reset pad mapping</button>
+        </section>
+
+        <!-- Rest panel -->
+        <section id="panel-rest" class="overlay-panel hidden">
+          <div class="overlay-rest-bar">
+            <div id="rest-countdown">next rep in 0.0s</div>
+            <button id="rest-skip" class="overlay-primary">⏭ skip rest</button>
+          </div>
+          <div class="overlay-secondary-row">
+            <button id="rest-pause" class="overlay-secondary-btn">⏸ pause</button>
+            <button id="rest-stop" class="overlay-secondary-btn">⏹ stop set</button>
+          </div>
+        </section>
+
+        <!-- Set-summary panel (placeholder; Prompt 5 replaces buttons) -->
+        <section id="panel-summary" class="overlay-panel hidden">
+          <button id="summary-back" class="overlay-primary">← back to setup</button>
+        </section>
+      </div>
+    </div>
+
+    <script type="module">
+      const NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+      const nameOf = (n) => `${NAMES[n % 12]}${Math.floor(n / 12) - 1}`;
+
+      const statusEl = document.getElementById("status");
+      const deviceEl = document.getElementById("device");
+      const hintEl = document.getElementById("hint");
+      const gridEl = document.getElementById("grid");
+      const playBtn = document.getElementById("play");
+      const stopBtn = document.getElementById("stop");
+      const countdownEl = document.getElementById("countdown");
+      const beatMetaEl = document.getElementById("beat-meta");
+
+      // ─── Overlay (single modal container, three panels) ────────────────
+      const overlayEl = document.getElementById("overlay");
+      const overlayTitleEl = document.getElementById("overlay-title");
+      const overlayStatsEl = document.getElementById("overlay-stats");
+      const panelSetupEl = document.getElementById("panel-setup");
+      const panelRestEl = document.getElementById("panel-rest");
+      const panelSummaryEl = document.getElementById("panel-summary");
+
+      // Setup form fields
+      const setupFormEl = document.getElementById("setup-form");
+      const setupPatternEl = document.getElementById("setup-pattern");
+      const setupBpmEl = document.getElementById("setup-bpm");
+      const setupBarsEl = document.getElementById("setup-bars");
+      const setupRepsEl = document.getElementById("setup-reps");
+      const setupRestSecondsEl = document.getElementById("setup-rest");
+      const setupResetMappingBtn = document.getElementById("setup-reset-mapping");
+
+      // Rest panel controls
+      const restCountdownEl = document.getElementById("rest-countdown");
+      const skipRestBtn = document.getElementById("rest-skip");
+      const restPauseBtn = document.getElementById("rest-pause");
+      const restStopBtn = document.getElementById("rest-stop");
+
+      // Set-summary panel controls
+      const summaryBackBtn = document.getElementById("summary-back");
+
+      // Pad layout: 3 cols × 4 rows, matching the EP-40's physical pad arrangement.
+      // The EP-40 places C2/C#2/D2 at the bottom row and wraps the rest upward,
+      // so the visual rows top→bottom are: [7,8,9], [4,5,6], [1,2,3], [10,11,12].
+      const PAD_COUNT = 12;
+      const VISUAL_ORDER = [7,8,9, 4,5,6, 1,2,3, 10,11,12];
+
+      // Hardcoded mapping for the EP-40's standard chromatic layout
+      // (lowest notes at the bottom row, rising chromatically up the rows).
+      // Used as the boot default + the reset target so the layout is stable
+      // across sessions and doesn't depend on the user's press order.
+      const DEFAULT_PAD_MAPPING = {
+         1: 39,  2: 40,  3: 41,   // D#2 / E2 / F2  (visual row 3)
+         4: 42,  5: 43,  6: 44,   // F#2 / G2 / G#2 (visual row 2)
+         7: 45,  8: 46,  9: 47,   // A2 / A#2 / B2  (visual top)
+        10: 36, 11: 37, 12: 38,   // C2 / C#2 / D2  (visual bottom)
+      };
+
+      const padEls = new Map();
+      let noteToPad = new Map();
+      let padToNote = new Map();
+      const releaseTimers = new Map();
+      const warmTimers = new Map();
+      const scoredTimers = new Map();
+      let hitLog = []; // [{ note, beatIndex, expectedTime, actualTime, deltaMs }]
+      let strayLog = []; // [{ note, actualTime }] — in-round kick/snare hits with no in-window beat
+      let consumedBeatIndices = new Set(); // beatIndex values the user has already hit; suppresses the warm flash for them
+
+      function buildGrid() {
+        gridEl.innerHTML = "";
+        for (const padNum of VISUAL_ORDER) {
+          const el = document.createElement("div");
+          el.className = "pad unassigned";
+          el.dataset.pad = String(padNum);
+          el.innerHTML = `
+            <span class="pad-label">${padNum}</span>
+            <span class="pad-note">—</span>
+            <span class="pad-ms"></span>
+          `;
+          gridEl.appendChild(el);
+          padEls.set(padNum, {
+            el,
+            noteEl: el.querySelector(".pad-note"),
+            msEl: el.querySelector(".pad-ms"),
+          });
+        }
+      }
+
+      function refreshAssignments() {
+        for (const [padNum, { el, noteEl }] of padEls) {
+          const note = padToNote.get(padNum);
+          if (note == null) {
+            el.classList.add("unassigned");
+            noteEl.textContent = "—";
+          } else {
+            el.classList.remove("unassigned");
+            noteEl.textContent = nameOf(note);
+          }
+        }
+        const learned = padToNote.size;
+        hintEl.textContent = learned >= PAD_COUNT
+          ? `mapping learned · ${learned}/${PAD_COUNT}`
+          : `learning · ${learned}/${PAD_COUNT} (press next pad)`;
+      }
+
+      function flashPad(padNum) {
+        const entry = padEls.get(padNum);
+        if (!entry) return;
+        entry.el.classList.add("lit");
+        const prev = releaseTimers.get(padNum);
+        if (prev) clearTimeout(prev);
+        releaseTimers.set(padNum, setTimeout(() => {
+          entry.el.classList.remove("lit");
+        }, 140));
+      }
+
+      function warmFlashByNote(midiNote) {
+        const padNum = noteToPad.get(midiNote);
+        if (padNum == null) return;
+        const entry = padEls.get(padNum);
+        if (!entry) return;
+        entry.el.classList.add("warm");
+        const prev = warmTimers.get(padNum);
+        if (prev) clearTimeout(prev);
+        warmTimers.set(padNum, setTimeout(() => {
+          entry.el.classList.remove("warm");
+        }, 220));
+      }
+
+      function clearAllWarm() {
+        for (const [padNum, t] of warmTimers) clearTimeout(t);
+        warmTimers.clear();
+        for (const { el } of padEls.values()) el.classList.remove("warm");
+      }
+
+      function clearAllScored() {
+        for (const [padNum, t] of scoredTimers) clearTimeout(t);
+        scoredTimers.clear();
+        for (const { el, msEl } of padEls.values()) {
+          el.classList.remove("hit-green", "hit-yellow", "hit-red");
+          msEl.textContent = "";
+        }
+      }
+
+      function flashScored(padNum, deltaMs) {
+        const entry = padEls.get(padNum);
+        if (!entry) return;
+        const abs = Math.abs(deltaMs);
+        const greenMs = getGreenWindowMs();
+        const yellowMs = getYellowWindowMs();
+        const cls = abs <= greenMs
+          ? "hit-green"
+          : abs <= yellowMs
+            ? "hit-yellow"
+            : "hit-red";
+
+        // Clear competing visual states for this pad
+        entry.el.classList.remove("hit-green", "hit-yellow", "hit-red", "lit", "warm");
+        const prevWarm = warmTimers.get(padNum);
+        if (prevWarm) { clearTimeout(prevWarm); warmTimers.delete(padNum); }
+        const prevLit = releaseTimers.get(padNum);
+        if (prevLit) { clearTimeout(prevLit); releaseTimers.delete(padNum); }
+
+        entry.el.classList.add(cls);
+        const sign = deltaMs >= 0 ? "+" : "";
+        entry.msEl.textContent = `${sign}${deltaMs.toFixed(0)}ms`;
+
+        const prev = scoredTimers.get(padNum);
+        if (prev) clearTimeout(prev);
+        scoredTimers.set(padNum, setTimeout(() => {
+          entry.el.classList.remove("hit-green", "hit-yellow", "hit-red");
+          entry.msEl.textContent = "";
+        }, 500));
+      }
+
+      function findNearestExpectedBeat(hitTime, note) {
+        if (!audioCtx) return null;
+        const pattern = getCurrentPattern();
+        const sptick = getSecondsPerTick();
+        const subdivision = pattern.subdivision;
+
+        const noteEventTicks = pattern.events
+          .filter(e => e.pad === note)
+          .map(e => e.tick);
+        if (noteEventTicks.length === 0) return null;
+
+        const elapsed = hitTime - roundStartAudioTime;
+        const elapsedTicks = elapsed / sptick;
+        const approxBar = Math.floor(elapsedTicks / subdivision);
+
+        let bestExpectedTime = null;
+        let bestDeltaMs = Infinity;
+        for (const evTick of noteEventTicks) {
+          for (const barOffset of [-1, 0, 1]) {
+            const candidateBar = approxBar + barOffset;
+            if (candidateBar < 0 || candidateBar >= currentLesson.barsPerRep) continue;
+            const expectedTime = roundStartAudioTime + (candidateBar * subdivision + evTick) * sptick;
+            const deltaMs = (hitTime - expectedTime) * 1000;
+            if (Math.abs(deltaMs) < Math.abs(bestDeltaMs)) {
+              bestDeltaMs = deltaMs;
+              bestExpectedTime = expectedTime;
+            }
+          }
+        }
+
+        if (bestExpectedTime === null) return null;
+
+        // beatIndex = tick from rep start (excluding count-in); uniquely identifies the expected event.
+        const beatIndex = Math.round((bestExpectedTime - roundStartAudioTime) / sptick);
+        return { beatIndex, expectedTime: bestExpectedTime, deltaMs: bestDeltaMs };
+      }
+
+      function handleNoteOn(note) {
+        let padNum = noteToPad.get(note);
+        if (padNum == null) {
+          for (let p = 1; p <= PAD_COUNT; p++) {
+            if (!padToNote.has(p)) {
+              padNum = p;
+              noteToPad.set(note, p);
+              padToNote.set(p, note);
+              persistMapping();
+              refreshAssignments();
+              break;
+            }
+          }
+          if (padNum == null) return;
+        }
+
+        // Score the hit if we're in the active part of a rep and the note is part of the current pattern
+        if (state === "playing" && audioCtx && isPatternNote(note)) {
+          const hitTime = audioCtx.currentTime;
+          const elapsed = hitTime - roundStartAudioTime;
+          if (elapsed >= 0 && elapsed < getActiveRepDurationS()) {
+            const match = findNearestExpectedBeat(hitTime, note);
+            if (match && Math.abs(match.deltaMs) <= getHitWindowMs()) {
+              hitLog.push({
+                note,
+                beatIndex: match.beatIndex,
+                expectedTime: match.expectedTime,
+                actualTime: hitTime,
+                deltaMs: match.deltaMs,
+              });
+              consumedBeatIndices.add(match.beatIndex);
+              flashScored(padNum, match.deltaMs);
+              return;
+            }
+            // In-rep pattern-note hit but outside any beat's window → stray
+            strayLog.push({ note, actualTime: hitTime });
+          }
+        }
+
+        // Default: white flash (pad outside a rep, wrong-pad during rep, or stray)
+        flashPad(padNum);
+      }
+
+      function persistMapping() {
+        try {
+          const obj = Object.fromEntries(padToNote);
+          localStorage.setItem("ul.padMapping", JSON.stringify(obj));
+        } catch {}
+      }
+
+      function applyMapping(obj) {
+        padToNote = new Map(Object.entries(obj).map(([k, v]) => [Number(k), Number(v)]));
+        noteToPad = new Map([...padToNote].map(([p, n]) => [n, p]));
+      }
+
+      function loadMapping() {
+        // For now the mapping is hardcoded to the EP-40's chromatic layout —
+        // we always apply the default on boot, regardless of any stale value
+        // in localStorage from earlier auto-learn sessions. We still write to
+        // localStorage so the data is available for future custom-mapping
+        // support, but we don't read it back here.
+        applyMapping(DEFAULT_PAD_MAPPING);
+        persistMapping();
+      }
+
+      function resetMapping() {
+        // Restore the EP-40 default rather than clearing — the user gets the
+        // intended layout immediately without having to re-press all 12 pads.
+        applyMapping(DEFAULT_PAD_MAPPING);
+        persistMapping();
+        refreshAssignments();
+      }
+      setupResetMappingBtn.addEventListener("click", resetMapping);
+
+      function handleNoteOff(note) {
+        const padNum = noteToPad.get(note);
+        if (padNum == null) return;
+        const entry = padEls.get(padNum);
+        if (!entry) return;
+
+        // Clear pressed visuals immediately so the pad releases in lockstep
+        // with the physical strike. The setTimeouts in flashPad / flashScored
+        // remain as a safety fallback if a note-off ever fails to arrive.
+        entry.el.classList.remove("lit", "hit-green", "hit-yellow", "hit-red");
+        entry.msEl.textContent = "";
+
+        const releaseTimer = releaseTimers.get(padNum);
+        if (releaseTimer) { clearTimeout(releaseTimer); releaseTimers.delete(padNum); }
+        const scoredTimer = scoredTimers.get(padNum);
+        if (scoredTimer) { clearTimeout(scoredTimer); scoredTimers.delete(padNum); }
+      }
+
+      function onMidi(e) {
+        const [status, data1, data2 = 0] = e.data;
+        const cmd = status & 0xf0;
+        if (cmd === 0x90 && data2 > 0) handleNoteOn(data1);
+        else if (cmd === 0x80 || (cmd === 0x90 && data2 === 0)) handleNoteOff(data1);
+      }
+
+      function bindInputs(access) {
+        const inputs = [...access.inputs.values()];
+        deviceEl.textContent = inputs.length
+          ? inputs.map(i => i.name).join(" · ")
+          : "no midi inputs detected";
+        for (const input of inputs) input.onmidimessage = onMidi;
+      }
+
+      // ─── Transport / audio engine ─────────────────────────────────────
+      const COUNT_IN_BEATS = 4;
+      const LOOKAHEAD_MS = 25;
+      const SCHEDULE_AHEAD_S = 0.1;
+      const HIT_WINDOW_MAX_MS = 300;
+      const HIT_GREEN_FRACTION = 0.13;
+      const HIT_YELLOW_FRACTION = 0.40;
+
+      const BPM_MIN = 40, BPM_MAX = 200;
+      const BARS_MIN = 1, BARS_MAX = 65;
+      const REPS_MIN = 1, REPS_MAX = 20;
+      const REST_MIN = 0, REST_MAX = 60;
+      const SET_HISTORY_CAP = 200;
+
+      // ─── Pattern catalog ──────────────────────────────────────────────
+      // Pads referenced by MIDI note: C2 = 36 (kick), C#2 = 37 (snare).
+      // `tick` is in subdivision units within one bar.
+      // Tick spacing in seconds = (60 / BPM) * (4 / subdivision).
+      const PATTERNS = {
+        "ks-quarters": {
+          id: "ks-quarters",
+          name: "Kick/snare quarters",
+          meter: [4, 4],
+          subdivision: 4,
+          events: [
+            { tick: 0, pad: 36 },
+            { tick: 1, pad: 37 },
+            { tick: 2, pad: 36 },
+            { tick: 3, pad: 37 },
+          ],
+        },
+        "ks-halves": {
+          id: "ks-halves",
+          name: "Kick/snare halves",
+          meter: [4, 4],
+          subdivision: 4,
+          events: [
+            { tick: 0, pad: 36 },
+            { tick: 2, pad: 37 },
+          ],
+        },
+        "ks-eighths": {
+          id: "ks-eighths",
+          name: "Kick/snare eighths",
+          meter: [4, 4],
+          subdivision: 8,
+          events: [
+            { tick: 0, pad: 36 }, { tick: 1, pad: 37 },
+            { tick: 2, pad: 36 }, { tick: 3, pad: 37 },
+            { tick: 4, pad: 36 }, { tick: 5, pad: 37 },
+            { tick: 6, pad: 36 }, { tick: 7, pad: 37 },
+          ],
+        },
+        "ks-sixteenths": {
+          id: "ks-sixteenths",
+          name: "Kick/snare sixteenths",
+          meter: [4, 4],
+          subdivision: 16,
+          events: [
+            { tick:  0, pad: 36 }, { tick:  1, pad: 37 }, { tick:  2, pad: 36 }, { tick:  3, pad: 37 },
+            { tick:  4, pad: 36 }, { tick:  5, pad: 37 }, { tick:  6, pad: 36 }, { tick:  7, pad: 37 },
+            { tick:  8, pad: 36 }, { tick:  9, pad: 37 }, { tick: 10, pad: 36 }, { tick: 11, pad: 37 },
+            { tick: 12, pad: 36 }, { tick: 13, pad: 37 }, { tick: 14, pad: 36 }, { tick: 15, pad: 37 },
+          ],
+        },
+      };
+
+      // ─── Lesson state ─────────────────────────────────────────────────
+      const DEFAULT_LESSON = {
+        patternId: "ks-quarters",
+        bpm: 90,
+        barsPerRep: 16,
+        repsPerSet: 5,
+        restSeconds: 10,
+      };
+
+      function clamp(n, min, max) {
+        return Math.max(min, Math.min(max, n));
+      }
+
+      function loadLesson() {
+        try {
+          const raw = localStorage.getItem("ul.lastLesson");
+          if (!raw) return { ...DEFAULT_LESSON };
+          const obj = JSON.parse(raw);
+          const bars = Math.round(Number(obj.barsPerRep));
+          const rest = Number(obj.restSeconds);
+          return {
+            patternId: PATTERNS[obj.patternId] ? obj.patternId : DEFAULT_LESSON.patternId,
+            bpm: clamp(Math.round(Number(obj.bpm)) || DEFAULT_LESSON.bpm, BPM_MIN, BPM_MAX),
+            barsPerRep: clamp(
+              Number.isFinite(bars) ? bars : DEFAULT_LESSON.barsPerRep,
+              BARS_MIN, BARS_MAX,
+            ),
+            repsPerSet: clamp(
+              Math.round(Number(obj.repsPerSet)) || DEFAULT_LESSON.repsPerSet,
+              REPS_MIN, REPS_MAX,
+            ),
+            restSeconds: clamp(
+              Number.isFinite(rest) ? Math.round(rest) : DEFAULT_LESSON.restSeconds,
+              REST_MIN, REST_MAX,
+            ),
+          };
+        } catch {
+          return { ...DEFAULT_LESSON };
+        }
+      }
+
+      function persistLesson() {
+        try {
+          localStorage.setItem("ul.lastLesson", JSON.stringify(currentLesson));
+        } catch {}
+      }
+
+      let currentLesson = loadLesson();
+      persistLesson(); // ensure storage is populated even on first run
+
+      // ─── Lesson-derived helpers ───────────────────────────────────────
+      function getCurrentPattern() { return PATTERNS[currentLesson.patternId]; }
+      function getSecondsPerBeat() { return 60 / currentLesson.bpm; }
+      function getTicksPerBeat() { return getCurrentPattern().subdivision / 4; }
+      function getSecondsPerTick() { return getSecondsPerBeat() / getTicksPerBeat(); }
+      function getCountInTicks() { return COUNT_IN_BEATS * getTicksPerBeat(); }
+      function getActiveRepDurationS() {
+        const pattern = getCurrentPattern();
+        return currentLesson.barsPerRep * pattern.subdivision * getSecondsPerTick();
+      }
+      function getRepTotalTicks() {
+        return getCountInTicks() + currentLesson.barsPerRep * getCurrentPattern().subdivision;
+      }
+      function isPatternNote(midiNote) {
+        return getCurrentPattern().events.some(e => e.pad === midiNote);
+      }
+
+      // ─── Hit window (subdivision-scaled) ──────────────────────────────
+      function getHitWindowMs() {
+        const subdivisionMs = getSecondsPerTick() * 1000;
+        return Math.min(HIT_WINDOW_MAX_MS, subdivisionMs / 2);
+      }
+      function getGreenWindowMs() { return getHitWindowMs() * HIT_GREEN_FRACTION; }
+      function getYellowWindowMs() { return getHitWindowMs() * HIT_YELLOW_FRACTION; }
+
+      // ─── Transport state ──────────────────────────────────────────────
+      let audioCtx = null;
+      // Top-level state.
+      let state = "setup"; // 'setup' | 'playing' | 'resting' | 'paused' | 'set-summary'
+      let pausedFrom = null; // 'playing' | 'resting' when state === 'paused'
+
+      // Rep-in-progress state
+      let nextTickTime = 0;
+      let currentTickIdx = 0;
+      let roundStartAudioTime = 0;
+      let elapsedAtPause = 0;
+
+      // Rest state
+      let restStartAudioTime = 0;
+      let restDurationS = 0;
+      let restElapsedAtPause = 0;
+
+      // Set state
+      let currentRepIndex = 0;       // 0-indexed; reps completed so far
+      let hitLogs = [];              // per-rep hit data, populated when each rep ends
+      let strayLogs = [];            // per-rep stray data
+      let setEndCause = null;        // 'natural' | 'stopped'
+
+      let schedulerTimer = null;
+      let uiTimer = null;
+
+      function getAudioCtx() {
+        if (!audioCtx || audioCtx.state === "closed") {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        return audioCtx;
+      }
+
+      function scheduleClick(time, accent) {
+        const ctx = getAudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = accent ? 1500 : 900;
+        const peak = accent ? 0.22 : 0.14;
+        gain.gain.setValueAtTime(0, time);
+        gain.gain.linearRampToValueAtTime(peak, time + 0.001);
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(time);
+        osc.stop(time + 0.07);
+      }
+
+      function scheduleTick(tickIndex, audioTime) {
+        const pattern = getCurrentPattern();
+        const ticksPerBeat = getTicksPerBeat();
+        const countInTicks = getCountInTicks();
+
+        // Audio: metronome click once per beat (every ticksPerBeat'th tick),
+        // including during the count-in.
+        if (tickIndex % ticksPerBeat === 0) {
+          const beatIndex = tickIndex / ticksPerBeat;
+          const beatInBar = beatIndex % pattern.meter[0];
+          const isDownbeat = beatInBar === 0;
+          scheduleClick(audioTime, isDownbeat);
+        }
+
+        // Visual: warm flash if the pattern has an event at this tick
+        // (only after the count-in has finished).
+        if (tickIndex >= countInTicks) {
+          const tickInBar = (tickIndex - countInTicks) % pattern.subdivision;
+          const event = pattern.events.find(e => e.tick === tickInBar);
+          if (event) {
+            const ctx = getAudioCtx();
+            const delayMs = Math.max(0, (audioTime - ctx.currentTime) * 1000);
+            const beatIndexForHit = tickIndex - countInTicks;
+            setTimeout(() => {
+              if (state !== "playing") return;
+              // Suppress the warm flash if the user already successfully hit
+              // this beat (early), so we don't show a confusing late "you
+              // should hit now" cue after the fact.
+              if (consumedBeatIndices.has(beatIndexForHit)) return;
+              warmFlashByNote(event.pad);
+            }, delayMs);
+          }
+        }
+      }
+
+      function scheduler() {
+        if (state !== "playing") return;
+        const ctx = getAudioCtx();
+        const sptick = getSecondsPerTick();
+        const repTotalTicks = getRepTotalTicks();
+        while (nextTickTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
+          if (currentTickIdx >= repTotalTicks) break;
+          scheduleTick(currentTickIdx, nextTickTime);
+          nextTickTime += sptick;
+          currentTickIdx++;
+        }
+        schedulerTimer = setTimeout(scheduler, LOOKAHEAD_MS);
+      }
+
+      function updateTransportUI() {
+        // Single play/pause toggle. Label and meaning depend on state.
+        if (state === "playing" || state === "resting") {
+          playBtn.textContent = "⏸ pause";
+          playBtn.disabled = false;
+        } else if (state === "paused") {
+          playBtn.textContent = "▶ resume";
+          playBtn.disabled = false;
+        } else {
+          // setup or set-summary — primary action lives in the overlay panel
+          playBtn.textContent = "▶ play";
+          playBtn.disabled = true;
+        }
+
+        // Stop only meaningful while a set is actually in progress.
+        stopBtn.disabled = state === "setup" || state === "set-summary";
+      }
+
+      // ─── Overlay rendering ────────────────────────────────────────────
+
+      function computeStats() {
+        const pattern = getCurrentPattern();
+        const subdivision = pattern.subdivision;
+        const greenMs = getGreenWindowMs();
+        const yellowMs = getYellowWindowMs();
+        const windowMs = getHitWindowMs();
+
+        // Expected event tick positions (from rep start, excluding count-in)
+        const expectedTicks = new Set();
+        for (let bar = 0; bar < currentLesson.barsPerRep; bar++) {
+          for (const ev of pattern.events) {
+            expectedTicks.add(bar * subdivision + ev.tick);
+          }
+        }
+
+        const totalEvents = expectedTicks.size;
+        const matchedTicks = new Set(hitLog.map(h => h.beatIndex));
+        // beatsHit counts unique expected events that received a matching hit
+        let beatsHit = 0;
+        for (const t of expectedTicks) {
+          if (matchedTicks.has(t)) beatsHit++;
+        }
+        const misses = totalEvents - beatsHit;
+
+        const deltas = hitLog.map(h => h.deltaMs);
+        const n = deltas.length;
+        let mean = 0, stdev = 0, tightest = null, widest = null;
+        let perfect = 0, good = 0, off = 0;
+        if (n > 0) {
+          mean = deltas.reduce((a, b) => a + b, 0) / n;
+          const variance = deltas.reduce((acc, d) => acc + (d - mean) ** 2, 0) / n;
+          stdev = Math.sqrt(variance);
+          const absDeltas = deltas.map(Math.abs);
+          tightest = Math.min(...absDeltas);
+          widest = Math.max(...absDeltas);
+          for (const a of absDeltas) {
+            if (a <= greenMs) perfect++;
+            else if (a <= yellowMs) good++;
+            else off++;
+          }
+        }
+
+        return {
+          beatsHit,
+          totalBeats: totalEvents,
+          misses,
+          strays: strayLog.length,
+          mean, stdev, tightest, widest,
+          perfect, good, off,
+          greenMs, yellowMs, windowMs,
+        };
+      }
+
+      function fmtMsSigned(v) {
+        const sign = v > 0 ? "+" : "";
+        return `${sign}${v.toFixed(0)}ms`;
+      }
+
+      function renderStatsInto(targetEl) {
+        const s = computeStats();
+        const hitPct = s.totalBeats > 0
+          ? Math.round((100 * s.beatsHit) / s.totalBeats)
+          : 0;
+        const meanLabel = s.beatsHit === 0
+          ? "—"
+          : Math.abs(s.mean) <= 5
+            ? "on time"
+            : s.mean > 0 ? "late" : "early";
+
+        const rows = [
+          ["Beats hit", `${s.beatsHit} / ${s.totalBeats}  (${hitPct}%)`],
+          ["Missed", String(s.misses)],
+          ["Strays", String(s.strays)],
+          { divider: true },
+          ["Mean offset", s.beatsHit ? `${fmtMsSigned(s.mean)} (${meanLabel})` : "—"],
+          ["Std dev", s.beatsHit ? `${s.stdev.toFixed(0)}ms` : "—"],
+          ["Tightest", s.tightest != null ? `${s.tightest.toFixed(0)}ms` : "—"],
+          ["Widest", s.widest != null ? `${s.widest.toFixed(0)}ms` : "—"],
+          { divider: true },
+          [`Perfect (≤${s.greenMs.toFixed(0)}ms)`, String(s.perfect)],
+          [`Good (≤${s.yellowMs.toFixed(0)}ms)`, String(s.good)],
+          [`Off (≤${s.windowMs.toFixed(0)}ms)`, String(s.off)],
+        ];
+
+        targetEl.innerHTML = rows.map(r => {
+          if (r.divider) return `<div class="summary-divider"></div>`;
+          const [label, value] = r;
+          return `<span class="summary-label">${label}</span><span class="summary-value">${value}</span>`;
+        }).join("");
+      }
+
+      function isRestState() {
+        return state === "resting" || (state === "paused" && pausedFrom === "resting");
+      }
+
+      // Single render entry point for the overlay. Decides which panel is
+      // visible based on `state`, populates content, and toggles the overlay
+      // container itself.
+      function renderOverlay() {
+        const showOverlay =
+          state === "setup" ||
+          state === "set-summary" ||
+          isRestState();
+
+        overlayEl.classList.toggle("hidden", !showOverlay);
+        if (!showOverlay) return;
+
+        // Hide all panels first.
+        panelSetupEl.classList.add("hidden");
+        panelRestEl.classList.add("hidden");
+        panelSummaryEl.classList.add("hidden");
+
+        if (state === "setup") {
+          panelSetupEl.classList.remove("hidden");
+          overlayTitleEl.textContent = "lesson setup";
+          overlayStatsEl.classList.add("hidden");
+          overlayStatsEl.innerHTML = "";
+        } else if (isRestState()) {
+          panelRestEl.classList.remove("hidden");
+          overlayTitleEl.textContent =
+            `rep ${currentRepIndex}/${currentLesson.repsPerSet} complete`;
+          overlayStatsEl.classList.remove("hidden");
+          renderStatsInto(overlayStatsEl);
+          // Pause/resume button label inside the rest panel.
+          restPauseBtn.textContent = state === "paused" ? "▶ resume" : "⏸ pause";
+        } else if (state === "set-summary") {
+          panelSummaryEl.classList.remove("hidden");
+          overlayTitleEl.textContent =
+            setEndCause === "stopped" ? "set ended" : "set complete";
+          overlayStatsEl.classList.remove("hidden");
+          renderStatsInto(overlayStatsEl);
+        }
+      }
+
+      // ─── Setup form ───────────────────────────────────────────────────
+      function populateSetupForm() {
+        setupPatternEl.value = currentLesson.patternId;
+        setupBpmEl.value = currentLesson.bpm;
+        setupBarsEl.value = currentLesson.barsPerRep;
+        setupRepsEl.value = currentLesson.repsPerSet;
+        setupRestSecondsEl.value = currentLesson.restSeconds;
+      }
+
+      function commitSetupForm() {
+        // Read raw values, clamp, write back to currentLesson, persist.
+        const patternId = PATTERNS[setupPatternEl.value]
+          ? setupPatternEl.value
+          : DEFAULT_LESSON.patternId;
+        const bpm = clamp(
+          Math.round(Number(setupBpmEl.value)) || DEFAULT_LESSON.bpm,
+          BPM_MIN, BPM_MAX,
+        );
+        const bars = clamp(
+          Math.round(Number(setupBarsEl.value)) || DEFAULT_LESSON.barsPerRep,
+          BARS_MIN, BARS_MAX,
+        );
+        const reps = clamp(
+          Math.round(Number(setupRepsEl.value)) || DEFAULT_LESSON.repsPerSet,
+          REPS_MIN, REPS_MAX,
+        );
+        const restRaw = Number(setupRestSecondsEl.value);
+        const rest = clamp(
+          Number.isFinite(restRaw) ? Math.round(restRaw) : DEFAULT_LESSON.restSeconds,
+          REST_MIN, REST_MAX,
+        );
+        currentLesson = { patternId, bpm, barsPerRep: bars, repsPerSet: reps, restSeconds: rest };
+        persistLesson();
+        // Reflect any clamped values back into the form so the user sees what was committed.
+        populateSetupForm();
+      }
+
+      setupFormEl.addEventListener("submit", (e) => {
+        e.preventDefault();
+        commitSetupForm();
+        beginSet();
+      });
+
+      // ─── Set lifecycle ────────────────────────────────────────────────
+      // Flow: beginSet → startRep(0) → onRepFinished → startRest → startRep(1) → ...
+      //       → onRepFinished (after rep N-1) → endSet("natural")
+      // Or:   any time → endSet("stopped") via the Stop button.
+
+      function beginSet() {
+        currentRepIndex = 0;
+        hitLogs = [];
+        strayLogs = [];
+        setEndCause = null;
+        startRep(0);
+      }
+
+      function startRep(repIndex) {
+        currentRepIndex = repIndex;
+        const ctx = getAudioCtx();
+        const sptick = getSecondsPerTick();
+        const countInTicks = getCountInTicks();
+
+        // Reset rep-in-progress state
+        currentTickIdx = 0;
+        hitLog = [];
+        strayLog = [];
+        consumedBeatIndices = new Set();
+        clearAllScored();
+        clearAllWarm();
+
+        nextTickTime = ctx.currentTime + 0.12;
+        roundStartAudioTime = nextTickTime + countInTicks * sptick;
+
+        state = "playing";
+        pausedFrom = null;
+
+        scheduler();
+        startUiLoop();
+        updateTransportUI();
+        renderOverlay();
+      }
+
+      function startRest() {
+        const ctx = getAudioCtx();
+        restDurationS = currentLesson.restSeconds;
+        restStartAudioTime = ctx.currentTime;
+        state = "resting";
+        pausedFrom = null;
+
+        // No clicks/warm flashes during rest (per PRD, metronome is silent).
+        clearTimeout(schedulerTimer);
+        schedulerTimer = null;
+        clearAllWarm();
+
+        // Render rest panel with prev rep's stats + countdown.
+        // For Prompt 2 placeholder, show last rep's stats; Prompt 4 will
+        // expand to include cumulative stats too.
+        renderOverlay();
+
+        // Keep the UI loop running so the rest countdown updates.
+        startUiLoop();
+        updateTransportUI();
+      }
+
+      function onRepFinished() {
+        // Save the just-finished rep's data
+        hitLogs[currentRepIndex] = hitLog.slice();
+        strayLogs[currentRepIndex] = strayLog.slice();
+
+        clearTimeout(schedulerTimer);
+        schedulerTimer = null;
+        clearAllWarm();
+
+        currentRepIndex++;
+
+        if (currentRepIndex >= currentLesson.repsPerSet) {
+          endSet("natural");
+        } else {
+          startRest();
+        }
+      }
+
+      function skipRest() {
+        if (state !== "resting") return;
+        startRep(currentRepIndex);
+      }
+
+      function endSet(cause) {
+        setEndCause = cause;
+
+        // If a rep was actively playing (or paused mid-rep), capture its partial data.
+        const wasPlaying = state === "playing" || (state === "paused" && pausedFrom === "playing");
+        if (wasPlaying && currentRepIndex < currentLesson.repsPerSet) {
+          hitLogs[currentRepIndex] = hitLog.slice();
+          strayLogs[currentRepIndex] = strayLog.slice();
+          currentRepIndex++;
+        }
+
+        clearTimeout(schedulerTimer);
+        schedulerTimer = null;
+        stopUiLoop();
+        clearAllWarm();
+        clearAllScored();
+
+        // Close audio context to flush any pending scheduled events.
+        if (audioCtx && audioCtx.state !== "closed") {
+          try { audioCtx.close(); } catch {}
+          audioCtx = null;
+        }
+
+        // Reset transient timing state, but keep currentRepIndex / hitLogs / strayLogs
+        // for the summary.
+        currentTickIdx = 0;
+        nextTickTime = 0;
+        roundStartAudioTime = 0;
+        elapsedAtPause = 0;
+        restStartAudioTime = 0;
+        restDurationS = 0;
+        restElapsedAtPause = 0;
+        pausedFrom = null;
+        state = "set-summary";
+
+        // Reset transport bar display.
+        const pattern = getCurrentPattern();
+        countdownEl.textContent = `${getActiveRepDurationS().toFixed(1)}s`;
+        countdownEl.classList.remove("active", "warn");
+        beatMetaEl.textContent = `${currentLesson.bpm} bpm · ${pattern.meter[0]}/${pattern.meter[1]}`;
+
+        // Placeholder set summary: show last completed rep's stats via the
+        // shared stats grid. Prompt 5 replaces this with the proper set
+        // summary (per-rep breakdown, trend tag, total time, etc.).
+        if (currentRepIndex > 0 && hitLogs[currentRepIndex - 1]) {
+          hitLog = hitLogs[currentRepIndex - 1];
+          strayLog = strayLogs[currentRepIndex - 1];
+        } else {
+          hitLog = [];
+          strayLog = [];
+        }
+        updateTransportUI();
+        renderOverlay();
+      }
+
+      async function resume() {
+        const ctx = getAudioCtx();
+        if (ctx.state === "suspended") await ctx.resume();
+
+        if (pausedFrom === "playing") {
+          const sptick = getSecondsPerTick();
+          const countInTicks = getCountInTicks();
+          // Re-anchor so getElapsed() picks up where we left off.
+          roundStartAudioTime = ctx.currentTime - elapsedAtPause;
+          nextTickTime = roundStartAudioTime + (currentTickIdx - countInTicks) * sptick;
+          state = "playing";
+          pausedFrom = null;
+          scheduler();
+        } else if (pausedFrom === "resting") {
+          restStartAudioTime = ctx.currentTime - restElapsedAtPause;
+          state = "resting";
+          pausedFrom = null;
+        }
+
+        startUiLoop();
+        updateTransportUI();
+        renderOverlay();
+      }
+
+      function getElapsed() {
+        if (state === "setup" || state === "set-summary" || state === "resting") return 0;
+        if (state === "paused") return pausedFrom === "playing" ? elapsedAtPause : 0;
+        // state === "playing"
+        return audioCtx ? audioCtx.currentTime - roundStartAudioTime : 0;
+      }
+
+      function getRestElapsed() {
+        if (state === "paused" && pausedFrom === "resting") return restElapsedAtPause;
+        if (state !== "resting") return 0;
+        return audioCtx ? audioCtx.currentTime - restStartAudioTime : 0;
+      }
+
+      function updateCountdownUI() {
+        const pattern = getCurrentPattern();
+        const meter = pattern.meter;
+        const spb = getSecondsPerBeat();
+        const bpm = currentLesson.bpm;
+        const repsPerSet = currentLesson.repsPerSet;
+
+        // ── Resting ────────────────────────────────────────────────────
+        if (state === "resting" || (state === "paused" && pausedFrom === "resting")) {
+          const restElapsed = getRestElapsed();
+          const remaining = Math.max(0, restDurationS - restElapsed);
+
+          // Live rest countdown lives in the rest panel (inside the overlay).
+          restCountdownEl.textContent = state === "paused"
+            ? `paused · ${remaining.toFixed(1)}s`
+            : `next rep in ${remaining.toFixed(1)}s`;
+          restCountdownEl.classList.toggle("warn", state === "resting" && remaining <= 3);
+
+          // Transport bar shows static next-rep info while rest is running.
+          countdownEl.textContent = `${getActiveRepDurationS().toFixed(1)}s`;
+          countdownEl.classList.remove("active", "warn");
+          beatMetaEl.textContent =
+            `rep ${currentRepIndex + 1}/${repsPerSet} next · ${bpm} bpm · ${meter[0]}/${meter[1]}`;
+
+          if (state === "resting" && restElapsed >= restDurationS) {
+            startRep(currentRepIndex);
+          }
+          return;
+        }
+
+        // ── Playing / paused-from-playing / idle / set-summary ─────────
+        const elapsed = getElapsed();
+        const repDuration = getActiveRepDurationS();
+        const inCountIn = (state === "playing" || (state === "paused" && pausedFrom === "playing"))
+          && elapsed < 0;
+        const remaining = inCountIn
+          ? repDuration
+          : Math.max(0, repDuration - elapsed);
+        countdownEl.textContent = `${remaining.toFixed(1)}s`;
+
+        countdownEl.classList.toggle("active", state === "playing");
+        countdownEl.classList.toggle(
+          "warn",
+          state === "playing" && !inCountIn && remaining <= 5,
+        );
+
+        if (state === "playing" && inCountIn) {
+          // elapsed in [-COUNT_IN_BEATS * spb, 0)
+          const beatSinceCountInStart = Math.floor((elapsed + COUNT_IN_BEATS * spb) / spb);
+          const ci = Math.min(COUNT_IN_BEATS, beatSinceCountInStart + 1);
+          beatMetaEl.textContent =
+            `rep ${currentRepIndex + 1}/${repsPerSet} · ${bpm} bpm · count-in ${ci}/${COUNT_IN_BEATS}`;
+        } else if (state === "playing") {
+          const beat = Math.floor(elapsed / spb);
+          const bar = Math.floor(beat / meter[0]) + 1;
+          const beatInBar = (beat % meter[0]) + 1;
+          beatMetaEl.textContent =
+            `rep ${currentRepIndex + 1}/${repsPerSet} · ${bpm} bpm · bar ${bar}/${currentLesson.barsPerRep} · beat ${beatInBar}`;
+        } else if (state !== "paused") {
+          beatMetaEl.textContent = `${bpm} bpm · ${meter[0]}/${meter[1]}`;
+        }
+
+        if (state === "playing" && elapsed >= repDuration) {
+          onRepFinished();
+        }
+      }
+
+      function startUiLoop() {
+        stopUiLoop();
+        const tick = () => {
+          updateCountdownUI();
+          uiTimer = requestAnimationFrame(tick);
+        };
+        uiTimer = requestAnimationFrame(tick);
+      }
+      function stopUiLoop() {
+        if (uiTimer != null) cancelAnimationFrame(uiTimer);
+        uiTimer = null;
+      }
+
+      async function togglePlayPause() {
+        if (state === "playing" || state === "resting") {
+          await pause();
+        } else if (state === "paused") {
+          await resume();
+        } else if (state === "setup" || state === "set-summary") {
+          beginSet();
+        }
+      }
+
+      async function pause() {
+        if (state === "playing") {
+          elapsedAtPause = getElapsed();
+          pausedFrom = "playing";
+        } else if (state === "resting") {
+          restElapsedAtPause = getRestElapsed();
+          pausedFrom = "resting";
+        } else {
+          return;
+        }
+        state = "paused";
+        clearTimeout(schedulerTimer);
+        schedulerTimer = null;
+        clearAllWarm();
+        clearAllScored();
+        if (audioCtx && audioCtx.state === "running") {
+          try { await audioCtx.suspend(); } catch {}
+        }
+        updateTransportUI();
+        updateCountdownUI();
+        renderOverlay();
+      }
+
+      // Transport bar (visible during play/paused-from-play; covered by scrim
+      // during overlay states).
+      playBtn.addEventListener("click", togglePlayPause);
+      stopBtn.addEventListener("click", () => endSet("stopped"));
+
+      // Rest panel buttons (inside the overlay).
+      skipRestBtn.addEventListener("click", skipRest);
+      restPauseBtn.addEventListener("click", togglePlayPause);
+      restStopBtn.addEventListener("click", () => endSet("stopped"));
+
+      // Set-summary panel — placeholder back-to-setup button (Prompt 5
+      // replaces with proper New Lesson / Repeat Lesson buttons).
+      summaryBackBtn.addEventListener("click", () => {
+        state = "setup";
+        setEndCause = null;
+        // Reset transport bar display to current lesson defaults.
+        countdownEl.textContent = `${getActiveRepDurationS().toFixed(1)}s`;
+        countdownEl.classList.remove("active", "warn");
+        beatMetaEl.textContent = `${currentLesson.bpm} bpm · ${getCurrentPattern().meter[0]}/${getCurrentPattern().meter[1]}`;
+        populateSetupForm();
+        updateTransportUI();
+        renderOverlay();
+      });
+
+      // ─── Boot ─────────────────────────────────────────────────────────
+      buildGrid();
+      loadMapping();
+      refreshAssignments();
+      populateSetupForm();
+      updateTransportUI();
+      renderOverlay();
+
+      // Initialize transport display from current lesson
+      countdownEl.textContent = `${getActiveRepDurationS().toFixed(1)}s`;
+      beatMetaEl.textContent = `${currentLesson.bpm} bpm · ${getCurrentPattern().meter[0]}/${getCurrentPattern().meter[1]}`;
+
+      try {
+        const access = await navigator.requestMIDIAccess({ sysex: false });
+        statusEl.textContent = "listening";
+        statusEl.className = "ok";
+        bindInputs(access);
+        access.onstatechange = () => bindInputs(access);
+      } catch (err) {
+        statusEl.textContent = `midi error: ${err.message}`;
+        statusEl.className = "err";
+      }
+    </script>
+  </body>
+</html>
