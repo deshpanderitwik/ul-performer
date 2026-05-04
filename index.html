@@ -231,21 +231,6 @@
         opacity: 1;
       }
       .overlay-primary:hover { background: #e0e0e0; border-color: #e0e0e0; }
-      .overlay-corner {
-        position: absolute;
-        bottom: 0.7rem;
-        right: 1rem;
-        background: transparent;
-        color: #f2f2f2;
-        font: inherit;
-        font-size: 0.65rem;
-        border: none;
-        cursor: pointer;
-        opacity: 0.35;
-        padding: 0.2rem 0.4rem;
-      }
-      .overlay-corner:hover { opacity: 0.8; }
-
       /* Rest panel */
       .overlay-rest-bar {
         display: flex;
@@ -373,7 +358,6 @@
             </label>
             <button type="submit" id="setup-submit" class="overlay-primary">▶ begin set</button>
           </form>
-          <button id="setup-reset-mapping" class="overlay-corner">reset pad mapping</button>
         </section>
 
         <!-- Rest panel -->
@@ -423,8 +407,6 @@
       const setupBarsEl = document.getElementById("setup-bars");
       const setupRepsEl = document.getElementById("setup-reps");
       const setupRestSecondsEl = document.getElementById("setup-rest");
-      const setupResetMappingBtn = document.getElementById("setup-reset-mapping");
-
       // Rest panel controls
       const restCountdownEl = document.getElementById("rest-countdown");
       const skipRestBtn = document.getElementById("rest-skip");
@@ -670,14 +652,6 @@
         persistMapping();
       }
 
-      function resetMapping() {
-        // Restore the EP-40 default rather than clearing — the user gets the
-        // intended layout immediately without having to re-press all 12 pads.
-        applyMapping(DEFAULT_PAD_MAPPING);
-        persistMapping();
-        refreshAssignments();
-      }
-      setupResetMappingBtn.addEventListener("click", resetMapping);
 
       function handleNoteOff(note) {
         const padNum = noteToPad.get(note);
